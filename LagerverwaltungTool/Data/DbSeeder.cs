@@ -36,6 +36,51 @@ namespace LagerverwaltungTool.Data
                 db.Users.AddRange(anna, lars, peter);
             }
             db.SaveChanges();
+
+            // Are Users and Kategorien seeded? If yes, then seed Artikel
+            // Test Data for Artikel, only if no Artikel exist 
+            if (!db.Artikel.Any())
+            {
+                var notebooks = db.Kategorien.First(k => k.Name == "Notebooks & Tablets");
+                var einplatinen = db.Kategorien.First(k => k.Name == "Einplatinencomputer & Mikrocontroller");
+                var zubehoer = db.Kategorien.First(k => k.Name == "Zubehör");
+                var lars = db.Users.First(u => u.Rolle == UserRolle.Lernende);
+
+                db.Artikel.AddRange(
+                    new ArtikelModel
+                    {
+                        Bezeichnung = "Dell Latitude 5440",
+                        Hostname = "lt-lern-01",
+                        IPAdresse = "192.168.10.21",
+                        IstStatisch = true,
+                        MACAdresse = "00:1A:2B:3C:4D:5E",
+                        Netz = NetzwerkTyp.LAN,
+                        Ort = "OBBA",
+                        Kategorie = notebooks,
+                        Besitzer = lars
+                    },
+                    new ArtikelModel
+                    {
+                        Bezeichnung = "Raspberry Pi 4",
+                        Hostname = "rpi-lern-01",
+                        IPAdresse = "192.168.10.22",
+                        IstStatisch = false,
+                        MACAdresse = "DC:A6:32:11:22:33",
+                        Netz = NetzwerkTyp.WLAN,
+                        Ort = "OBBA",
+                        Kategorie = einplatinen,
+                        Status = ArtikelStatus.Beschaedigt,
+                    },
+                    new ArtikelModel
+                    {
+                        Bezeichnung = "USB-C Netzteil 65W",
+                        Ort = "WBBA",
+                        Kategorie = zubehoer
+                    }
+                );
+
+                db.SaveChanges();
+            }
         }
     }
 }
