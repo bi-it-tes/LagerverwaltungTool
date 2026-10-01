@@ -40,7 +40,7 @@ else
             @foreach (var a in artikel)
             {
                 <tr>
-                    <td>ART-@a.ART_ID.ToString("D4")</td>
+                    <td><a href="inventar/@a.ART_ID">ART-@a.ART_ID.ToString("D4")</a></td> 
                     <td>@a.Bezeichnung</td>
                     <td>@a.Hostname</td>
                     <td>@a.IPAdresse</td>
