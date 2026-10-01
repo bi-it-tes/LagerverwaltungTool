@@ -1,0 +1,148 @@
+﻿@page "/inventar/neu"
+@rendermode InteractiveServer
+@using Microsoft.EntityFrameworkCore
+@using LagerverwaltungTool.Data
+@using LagerverwaltungTool.Model
+@inject AppDbContext Db
+@inject NavigationManager Nav
+
+<PageTitle>Neuen Artikel hinzufügen</PageTitle>
+<a href="inventar">← Zurück zum Inventar</a>
+<h3 class="mt-3">Artikel hinzufügen</h3>
+
+@if (kategorien == null)
+{
+    <p>Lade...</p>
+}
+else
+{
+    <EditForm Model="artikel" OnSubmit="Speichern">
+        @if (fehler != null)
+        {
+            <div class="alert alert-danger">@fehler</div>
+        }
+
+        <div class="row">
+            <div class="col-md-6 mb-3">
+                <div class="card h-100">
+                    <div class="card-header">Verwaltung</div>
+                    <div class="card-body">
+                        <div class="mb-2">
+                            <label class="form-label">Kategorie</label>
+                            <select class="form-select" @bind="artikel.KategorieId">
+                                <option value="0">-- bitte auswählen --</option>
+                                @foreach (var k in kategorien)
+                                {
+                                    <option value="@k.Id">@k.Name</option>
+                                }
+                            </select>
+                        </div>
+                        <div class="mb-2">
+                            <label class="form-label">Bezeichnung</label>
+                            <input class="form-control" @bind="artikel.Bezeichnung" />
+                        </div>
+                        <div class="mb-2">
+                            <label class="form-label">Ort</label>
+                            <select class="form-select" @bind="artikel.Ort">
+                                <option value="">-- bitte wählen --</option>
+                                <option value="OBBA">OBBA</option>
+                                <option value="WBBA">WBBA</option>
+                            </select>
+                        </div>
+                        <div class="mb-2">
+                            <label class="form-label">Notizen</label>
+                            <textarea class="form-control" rows="3" @bind="artikel.Notizen"></textarea>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            @if (ZeigeNetzwerk)
+            {
+                <div class="col-md-6 mb-3">
+                    <div class="card h-100">
+                        <div class="card-header">Netzwerk</div>
+                        <div class="card-body">
+                            <div class="mb-2">
+                                <label class="form-label">Hostname</label>
+                                <input class="form-control" @bind="artikel.Hostname" />
+                            </div>
+                            <div class="mb-2">
+                                <label class="form-label">IP-Adresse</label>
+                                <input class="form-control" @bind="artikel.IPAdresse" />
+                            </div>
+                            <div class="form-check mb-2">
+                                <input class="form-check-input" type="checkbox" id="statisch" @bind="artikel.IstStatisch" />
+                                <label class="form-check-label" for="statisch">Statisch</label>
+                            </div>
+                            <div class="mb-2">
+                                <label class="form-label">MAC-Adresse</label>
+                                <input class="form-control" @bind="artikel.MACAdresse" />
+                            </div>
+                            <div class="mb-2">
+                                <label class="form-label">Netz</label>
+                                <select class="form-select" @bind="artikel.Netz">
+                                    <option value="">-- bitte wählen --</option>
+                                    <option value="@NetzwerkTyp.LAN">LAN</option>
+                                    <option value="@NetzwerkTyp.WLAN">WLAN</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            }
+        </div>
+
+        <button type="submit" class="btn btn-primary">Speichern</button>
+        <a href="inventar" class="btn btn-secondary ms-2">Abbrechen</a>
+    </EditForm>
+}
+
+@code {
+    private ArtikelModel artikel = new();
+    private List<KategorieModel>? kategorien;
+    private string? fehler;
+
+    // Kategorien ohne Netzwerkfelder (ANF-05)
+    private static readonly string[] OhneNetzwerk =
+        { "Bildschirme & Peripherie", "Zubehör", "Verbrauchsmaterial" };
+
+    private bool ZeigeNetzwerk
+    {
+        get
+        {
+            var k = kategorien?.FirstOrDefault(x => x.Id == artikel.KategorieId);
+            return k != null && !OhneNetzwerk.Contains(k.Name);
+        }
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        kategorien = await Db.Kategorien.OrderBy(k => k.Name).ToListAsync();
+    }
+
+    private async Task Speichern()
+    {
+        if (artikel.KategorieId == 0 || string.IsNullOrWhiteSpace(artikel.Bezeichnung))
+        {
+            fehler = "Bitte Kategorie und Bezeichnung ausfüllen.";
+            return;
+        }
+
+        if (!ZeigeNetzwerk)
+        {
+            artikel.Hostname = null;
+            artikel.IPAdresse = null;
+            artikel.MACAdresse = null;
+            artikel.Netz = null;
+            artikel.IstStatisch = false;
+        }
+
+        artikel.Status = ArtikelStatus.Verfuegbar;
+        artikel.Erfassungsdatum = DateTime.Now;
+
+        Db.Artikel.Add(artikel);
+        await Db.SaveChangesAsync();
+        Nav.NavigateTo("inventar");
+    }
+}
