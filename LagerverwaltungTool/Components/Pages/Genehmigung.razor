@@ -1,0 +1,102 @@
+﻿@page "/genehmigungen"
+@rendermode InteractiveServer
+@using Microsoft.EntityFrameworkCore
+@using LagerverwaltungTool.Data
+@using LagerverwaltungTool.Model
+@inject AppDbContext Db
+
+<PageTitle>Genehmigungen</PageTitle>
+
+<h3>Genehmigungsanfragen</h3>
+
+@if (antraege == null)
+{
+    <p>Lade...</p>
+}
+else if (antraege.Count == 0)
+{
+    
+    <p>Keine Anträge vorhanden.</p>
+}
+else
+{       
+    <table class="table table-striped">
+        <thead>
+            <tr>
+                <th>ID</th>
+                <th>Antragsteller</th>
+                <th>Artikel</th>
+                <th>Begründung</th>  
+                <th>Anzahl</th>  
+                <th>Zeitraum</th>  
+                <th>Status</th>  
+                <th>Erstellt</th>  
+                <th>Aktion</th>  
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var a in antraege)
+            {
+                <tr>
+                    <td>REQ-@a.REQ_ID.ToString("D4")</td>
+                    <td>@a.User.Benutzername</td>
+                    <td>@string.Join(", ", a.Artikel.Select(x => x.Artikel.Bezeichnung))</td>
+                    <td>@a.Begruendung</td>
+                    <td>@a.Artikel.Sum(x => x.Anzahl)</td>
+                    <td>@Zeitraum(a)</td>
+                    <td>@a.Status</td>
+                    <td>@a.Erstellungsdatum.ToString("dd.MM.yyyy")</td>
+                    <td>
+                        @if (a.Status == AntragStatus.Ausstehend)
+                        {
+                            <button class="btn btn-success btn-sm me-1" @onclick="() => Genehmigen(a)">Genehmigen</button>
+                            <button class="btn btn-danger btn-sm" @onclick="() => Ablehnen(a)">Ablehnen</button>
+                        }
+                    </td>
+                </tr>
+            }
+        </tbody>
+    </table>
+}
+
+
+@code {
+    private List<AusleihAntragModel>? antraege;
+
+    protected override async Task OnInitializedAsync()
+    {
+        antraege = await Db.AusleihAntraege
+            .Include(a => a.User)
+            .Include(a => a.Artikel)
+                .ThenInclude(aa => aa.Artikel)
+            .OrderByDescending(a => a.Erstellungsdatum)
+            .ToListAsync();
+    }
+
+    private static string Zeitraum(AusleihAntragModel a) => 
+        a.Artikel.Any()
+            ? $"{a.Artikel.Min(x => x.Von):dd.MM.yyyy} - {a.Artikel.Max(x => x.Bis):dd.MM.yyyy}"
+            : "-";
+
+    private async Task Genehmigen(AusleihAntragModel a)
+    {
+        if (a.Status != AntragStatus.Ausstehend) return;
+
+        a.Status = AntragStatus.Genehmigt;
+        foreach (var aa in a.Artikel)
+            aa.Artikel.Status = ArtikelStatus.Ausgeliehen;
+
+        await Db.SaveChangesAsync();
+    }
+
+    private async Task Ablehnen(AusleihAntragModel a)
+    {
+        if (a.Status != AntragStatus.Ausstehend) return;
+
+        a.Status = AntragStatus.Abgelehnt;
+        foreach (var aa in a.Artikel)
+            aa.Artikel.Status = ArtikelStatus.Verfuegbar;
+
+        await Db.SaveChangesAsync();
+    }
+}

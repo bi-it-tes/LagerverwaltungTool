@@ -25,7 +25,7 @@ namespace LagerverwaltungTool.Data
             {
                 var hasher = new PasswordHasher<UserModel>();
 
-                var anna = new UserModel { Benutzername = "Anna Müller", Email = "anna.müller@psi.ch", Rolle = UserRolle.Admin };
+                var anna = new UserModel { Benutzername = "Anna Müller", Email = "anna.mueller@psi.ch", Rolle = UserRolle.Admin };
                 var lars = new UserModel { Benutzername = "Lars Lernende", Email = "lars.lernende@psi.ch", Rolle = UserRolle.Lernende };
                 var peter = new UserModel { Benutzername = "Peter Hans", Email = "peter.hans@psi.ch", Rolle = UserRolle.Gast };
 
@@ -79,6 +79,32 @@ namespace LagerverwaltungTool.Data
                     }
                 );
 
+                db.SaveChanges();
+            }
+
+            // Testantrag, nur wenn noch keiner existiert
+            if (!db.AusleihAntraege.Any())
+            {
+                var lernende = db.Users.First(u => u.Rolle == UserRolle.Lernende);
+                var pi = db.Artikel.First(a => a.Bezeichnung == "Raspberry Pi 4");
+                var netzteil = db.Artikel.First(a => a.Bezeichnung == "USB-C Netzteil 65W");
+
+                var antrag = new AusleihAntragModel
+                {
+                    User = lernende,
+                    Begruendung = "Für das Schulprojekt benötige ich einen Raspberry Pi und ein Netzteil.",
+                    Artikel = new List<AusleihArtikelModel>
+                    {
+                        new AusleihArtikelModel { Artikel = pi, Anzahl = 1, Von = DateTime.Today, Bis = DateTime.Today.AddMonths(1) },
+                        new AusleihArtikelModel { Artikel = netzteil, Anzahl = 1, Von = DateTime.Today, Bis = DateTime.Today.AddMonths(1) }
+                    }
+                };
+
+                // Nach dem Absenden sind die Artikel reserviert
+                pi.Status = ArtikelStatus.Reserviert;
+                netzteil.Status = ArtikelStatus.Reserviert;
+
+                db.AusleihAntraege.Add(antrag);
                 db.SaveChanges();
             }
         }
