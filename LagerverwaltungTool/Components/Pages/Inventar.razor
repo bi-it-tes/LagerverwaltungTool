@@ -1,0 +1,71 @@
+﻿@page "/inventar"
+@using Microsoft.EntityFrameworkCore
+@using LagerverwaltungTool.Data
+@using LagerverwaltungTool.Model
+@inject AppDbContext Db
+
+<PageTitle>Inventar</PageTitle>
+
+<h3>Inventar Übersicht:</h3>
+
+@if (artikel == null)
+{
+    <p>Lade...</p>    
+}
+else if (artikel.Count == 0)
+{
+    <p>Keine Artikel gefunden.</p>
+}
+else
+{
+    <table class="table table-striped">
+        <thead>
+            <tr>
+                <th>ID</th>
+                <th>Bezeichnung</th>
+                <th>Hostname</th>
+                <th>IP-Address</th>
+                <th>Statisch</th>
+                <th>MAC-Adresse</th>
+                <th>Netz</th>
+                <th>Ort</th>
+                <th>Besitzer</th>
+                <th>Kategorie</th>
+                <th>Status</th>
+                <th>Notizen</th>
+                <th>Erfassungsdatum</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var a in artikel)
+            {
+                <tr>
+                    <td>ART-@a.ART_ID.ToString("D4")</td>
+                    <td>@a.Bezeichnung</td>
+                    <td>@a.Hostname</td>
+                    <td>@a.IPAdresse</td>
+                    <td>@(a.IstStatisch ? "Ja" : "Nein")</td>
+                    <td>@a.MACAdresse</td>
+                    <td>@a.Netz</td>
+                    <td>@a.Ort</td>
+                    <td>@a.Besitzer?.Benutzername</td>
+                    <td>@a.Kategorie.Name</td>
+                    <td>@a.Status</td>
+                    <td>@a.Notizen</td>
+                    <td>@a.Erfassungsdatum.ToString("dd.MM.yyyy")</td>
+                </tr>
+            }
+        </tbody>
+    </table>
+}
+
+@code {
+    private List<ArtikelModel>? artikel;
+    protected override async Task OnInitializedAsync()
+    {
+        artikel = await Db.Artikel
+            .Include(a => a.Besitzer)
+            .Include(a => a.Kategorie)
+            .ToListAsync();
+    }
+}
