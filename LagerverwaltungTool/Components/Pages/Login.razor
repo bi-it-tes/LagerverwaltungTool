@@ -1,0 +1,77 @@
+﻿@page "/login"
+@attribute [AllowAnonymous]
+@using System.Security.Claims
+@using Microsoft.AspNetCore.Authentication
+@using Microsoft.AspNetCore.Authentication.Cookies
+@using Microsoft.AspNetCore.Identity
+@using Microsoft.EntityFrameworkCore
+@using LagerverwaltungTool.Data
+@using LagerverwaltungTool.Model
+@inject AppDbContext Db
+@inject NavigationManager Nav
+
+
+<PageTitle>Login</PageTitle>
+
+<h3>Login</h3>
+
+<EditForm Model="input" FormName="login" OnSubmit="Anmelden" method="post" style="max-width: 400px;">
+    @if (fehler != null)
+    {
+        <div class="alert alert-danger">@fehler</div>
+    }
+
+    <div class="mb-3">
+        <label class="form-label">E-Mail</label>
+        <InputText class="form-control" @bind-Value="input.Email" />
+    </div>
+    <div class="mb-3">
+        <label class="form-label">Passwort</label>
+        <InputText type="password" class="form-control" @bind-Value="input.Passwort" />
+    </div>
+    <button type="submit" class="btn btn-primary">Anmelden</button>
+</EditForm>
+    
+@code {
+    [CascadingParameter] private HttpContext? HttpContext { get; set; }
+    [SupplyParameterFromForm] private LoginInput? input { get; set; }
+
+    protected override void OnInitialized() => input ??= new();
+
+    private string? fehler;
+
+    private async Task Anmelden()
+    {
+        var user = await Db.Users.FirstOrDefaultAsync(u => u.Email == input.Email);
+        
+        if (user != null)
+        {
+         
+           var hasher = new PasswordHasher<UserModel>();
+            var result = hasher.VerifyHashedPassword(user, user.PasswortHash, input.Passwort);
+
+            if (result != PasswordVerificationResult.Failed)
+            {
+              var claims = new List<Claim>
+                {
+                    new(ClaimTypes.NameIdentifier, user.Id.ToString()),
+                    new(ClaimTypes.Name, user.Benutzername),
+                    new(ClaimTypes.Role, user.Rolle.ToString())
+                };
+                var identity = new ClaimsIdentity(claims, CookieAuthenticationDefaults.AuthenticationScheme);
+                await HttpContext!.SignInAsync(CookieAuthenticationDefaults.AuthenticationScheme, new ClaimsPrincipal(identity));
+
+                Nav.NavigateTo("/");
+                return;
+            }
+        }
+
+        fehler = "E-Mail oder Passwort falsch.";
+    }
+
+    public class LoginInput
+    {
+        public string Email { get; set; } = string.Empty;
+        public string Passwort { get; set; } = string.Empty;
+    }
+}
