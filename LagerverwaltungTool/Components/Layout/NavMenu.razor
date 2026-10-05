@@ -20,17 +20,40 @@
             </NavLink>
         </div>
 
-        <div class="nav-item px-3">
-            <NavLink class="nav-link" href="genehmigungen">
-                <span class="bi bi-list-nested-nav-menu" aria-hidden="true"></span> Genehmigungen
-            </NavLink>
-        </div>
+        <AuthorizeView Roles="Admin">
+            <div class="nav-item px-3">
+                <NavLink class="nav-link" href="genehmigungen">
+                    <span class="bi bi-list-nested-nav-menu" aria-hidden="true"></span> Genehmigungen
+                </NavLink>
+            </div>
+        </AuthorizeView>
 
-        <div class="nav-item px-3">
-            <NavLink class="nav-link" href="ausleihen">
-                <span class="bi bi-list-nested-nav-menu" aria-hidden="true"></span> Meine Ausleihen
-            </NavLink>
-        </div>
+        <AuthorizeView Roles="Lernende, Admin">
+            <div class="nav-item px-3">
+                <NavLink class="nav-link" href="Ausleihen">
+                    <span class="bi bi-list-nested-nav-menu" aria-hidden="true"></span> Meine Ausleihen
+                </NavLink>
+            </div>
+        </AuthorizeView>
+
+         <AuthorizeView Roles="Admin">
+            <div class="nav-item px-3">
+                <NavLink class="nav-link" href="changelog">
+                    <span class="bi bi-list-nested-nav-menu" aria-hidden="true"></span> Change-Log
+                </NavLink>
+            </div>
+        </AuthorizeView>
+
+        <AuthorizeView>
+            <Authorized>
+                <div class="nav-item px-3 mt-3 text-white">
+                    <div>@context.User.Identity?.Name</div>
+                    <small>@context.User.FindFirst(System.Security.Claims.ClaimTypes.Role)?.Value</small>
+                    <form action="/logout" method="post" class="mt-2">
+                        <button type="submit" class="btn btn-outline-light btn-sm">Logout</button>
+                    </form>
+                </div>
+            </Authorized>
+        </AuthorizeView>
     </nav>
 </div>
-

@@ -1,0 +1,67 @@
+﻿@page "/ChangeLog"
+@attribute [Authorize(Roles = "Admin")]
+@using LagerverwaltungTool.Data
+@using LagerverwaltungTool.Model
+@using Microsoft.EntityFrameworkCore
+@inject AppDbContext Db
+
+<PageTitle>Change-Log</PageTitle>
+
+<h3>ChangeLog</h3>
+
+<p class="text-muted">Hier werden Die letzten 200 Änderungen protokolliert, neueste zuerst.</p>
+
+@if (eintraege == null)
+{
+    <p>Lade...</p>    
+}
+else if (eintraege.Count == 0)
+{
+    <p>Noch keine Änderungen protokolliert..</p>    
+}
+else
+{
+    
+   <table class="table table-striped">
+        <thead>
+            <tr>
+                <th>Zeirpunkt</th>
+                <th>Benutzer</th>
+                <th>Aktion</th>
+                <th>Eintrag</th>
+                <th>Details</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var e in eintraege)
+            {
+                <tr>
+                    <td>@e.Zeitpunkt.ToString("dd.MM.yyyy HH:mm")</td>
+                    <td>@e.User?.Benutzername</td>
+                    <td>@e.Aktion</td>
+                    <td>@AnzeigeId(e)</td>
+                    <td>@e.Details</td>
+                </tr>
+            }
+        </tbody>
+    </table>}
+
+@code {
+    private List<ChangeLogModel>? eintraege;
+    protected override async Task OnInitializedAsync()
+    {
+        eintraege = await Db.ChangeLogs
+            .Include(c => c.User)
+            .OrderByDescending(c => c.Zeitpunkt)
+            .Take(200)
+            .ToListAsync();
+    }
+
+    private static string AnzeigeId(ChangeLogModel e) => e.Tabelle switch
+    {
+      "Artikel" => $"ART-{e.EintragId:D4}",
+      "AusleihAntraege" => $"REQ-{e.EintragId:D4}",
+      _ => $"{e.Tabelle} {e.EintragId}"
+    };
+   
+}

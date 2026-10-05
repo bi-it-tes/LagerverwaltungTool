@@ -4,6 +4,9 @@
 @using LagerverwaltungTool.Data
 @using LagerverwaltungTool.Model
 @inject AppDbContext Db
+@inject ChangeLogService Log
+@attribute [Authorize(Roles = "Admin")]
+
 
 <PageTitle>Genehmigungen</PageTitle>
 
@@ -52,6 +55,21 @@ else
                             <button class="btn btn-success btn-sm me-1" @onclick="() => Genehmigen(a)">Genehmigen</button>
                             <button class="btn btn-danger btn-sm" @onclick="() => Ablehnen(a)">Ablehnen</button>
                         }
+                        else if (a.Status == AntragStatus.Genehmigt && a.RueckgabeDatum == null)
+                        {
+                            
+                            <input class="form-control form-control-sm mb-1" placeholder="Notiz zur Rückgabe"
+                                   @bind="rueckgabeNotizen[a.REQ_ID]" />
+                            <button class="btn btn-primary btn-sm" @onclick="() => Zurueckgeben(a)">Rückgabe erfassen</button>
+                        }
+                        else if (a.RueckgabeDatum != null)
+                        {
+                             <small>Zurückgegeben am @a.RueckgabeDatum.Value.ToString("dd.MM.yyyy")</small>
+                            @if (!string.IsNullOrEmpty(a.RueckgabeNotizen))
+                            {
+                                <br /><small>@a.RueckgabeNotizen</small>
+                            }
+                        }
                     </td>
                 </tr>
             }
@@ -61,6 +79,8 @@ else
 
 
 @code {
+
+    private Dictionary<int, string> rueckgabeNotizen = new();
     private List<AusleihAntragModel>? antraege;
 
     protected override async Task OnInitializedAsync()
@@ -71,6 +91,11 @@ else
                 .ThenInclude(aa => aa.Artikel)
             .OrderByDescending(a => a.Erstellungsdatum)
             .ToListAsync();
+
+        foreach (var a in antraege)
+        {
+            rueckgabeNotizen[a.REQ_ID] = string.Empty;
+        }
     }
 
     private static string Zeitraum(AusleihAntragModel a) => 
@@ -87,7 +112,10 @@ else
             aa.Artikel.Status = ArtikelStatus.Ausgeliehen;
 
         await Db.SaveChangesAsync();
+        await Log.LogAsync("AusleihAntraege", a.REQ_ID, "Genehmigt");
     }
+    
+
 
     private async Task Ablehnen(AusleihAntragModel a)
     {
@@ -98,5 +126,21 @@ else
             aa.Artikel.Status = ArtikelStatus.Verfuegbar;
 
         await Db.SaveChangesAsync();
+        await Log.LogAsync("AusleihAntraege", a.REQ_ID, "Abgelehnt");
+    }
+   
+
+
+    private async Task Zurueckgeben(AusleihAntragModel a)
+    {
+        if (a.Status != AntragStatus.Genehmigt || a.RueckgabeDatum != null) return;
+        a.RueckgabeDatum = DateTime.Now;
+        a.RueckgabeNotizen = string.IsNullOrWhiteSpace(rueckgabeNotizen[a.REQ_ID])
+        ? null
+        : rueckgabeNotizen[a.REQ_ID];
+        foreach (var aa in a.Artikel)
+            aa.Artikel.Status = ArtikelStatus.Verfuegbar;
+        await Db.SaveChangesAsync();
+        await Log.LogAsync("AusleihAntraege", a.REQ_ID, "Rückgabe erfasst", a.RueckgabeNotizen);
     }
 }

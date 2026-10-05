@@ -5,6 +5,8 @@
 @using LagerverwaltungTool.Model
 @inject AppDbContext Db
 @inject NavigationManager Nav
+@inject ChangeLogService Log
+@attribute [Authorize(Roles = "Admin")]
 
 <PageTitle>Neuen Artikel hinzufügen</PageTitle>
 <a href="inventar">← Zurück zum Inventar</a>
@@ -143,6 +145,7 @@ else
 
         Db.Artikel.Add(artikel);
         await Db.SaveChangesAsync();
+        await Log.LogAsync("Artikel", artikel.ART_ID, "Erstellt", artikel.Bezeichnung);
         Nav.NavigateTo("inventar");
     }
 }

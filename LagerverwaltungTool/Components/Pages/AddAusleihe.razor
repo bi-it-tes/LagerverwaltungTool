@@ -1,0 +1,150 @@
+﻿@page "/Ausleihen/neu"
+@rendermode InteractiveServer
+@attribute [Authorize(Roles = "Admin,Lernende")]
+@using Microsoft.EntityFrameworkCore
+@using Microsoft.AspNetCore.Components.Authorization
+@using LagerverwaltungTool.Data
+@using LagerverwaltungTool.Model
+@inject AppDbContext Db
+@inject NavigationManager Nav
+@inject ChangeLogService Log
+
+<PageTitle>Ausleihantrag erstellen</PageTitle>
+
+<a href="Ausleihen">← Zurück zu Meine Ausleihen</a>
+<h3 class="mt-3">Ausleihantrag erstellen</h3>
+
+@if (verfuegbar == null)
+{
+    <p>Lade...</p>
+}
+else
+{
+    <EditForm Model="this" OnSubmit="Absenden">
+        @if (fehler != null)
+        {
+            <div class="alert alert-danger">@fehler</div>
+        }
+
+        <div class="row">
+            <div class="col-md-6 mb-3">
+                <div class="card h-100">
+                    <div class="card-header">Antrag</div>
+                    <div class="card-body">
+                        <div class="mb-2">
+                            <label class="form-label">Begründung</label>
+                            <textarea class="form-control" rows="3" @bind="begruendung"></textarea>
+                        </div>
+                        <div class="mb-2">
+                            <label class="form-label">Von</label>
+                            <input type="date" class="form-control" @bind="von" />
+                        </div>
+                        <div class="mb-2">
+                            <label class="form-label">Bis</label>
+                            <input type="date" class="form-control" @bind="bis" />
+                            <div class="form-text">Maximale Ausleihdauer: 1 Monat</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-md-6 mb-3">
+                <div class="card h-100">
+                    <div class="card-header">Verfügbare Artikel</div>
+                    <div class="card-body">
+                        @if (verfuegbar.Count == 0)
+                        {
+                            <p>Aktuell sind keine Artikel verfügbar.</p>
+                        }
+                        @foreach (var a in verfuegbar)
+                        {
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" id="art-@a.ART_ID"
+                                       checked="@gewaehlt.Contains(a.ART_ID)"
+                                       @onchange="e => Toggle(a.ART_ID, (bool)e.Value!)" />
+                                <label class="form-check-label" for="art-@a.ART_ID">
+                                    ART-@a.ART_ID.ToString("D4") – @a.Bezeichnung (@a.Kategorie.Name)
+                                </label>
+                            </div>
+                        }
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <button type="submit" class="btn btn-primary">Antrag absenden</button>
+        <a href="Ausleihen" class="btn btn-secondary ms-2">Abbrechen</a>
+    </EditForm>
+}
+
+@code {
+    [CascadingParameter] private Task<AuthenticationState>? AuthState { get; set; }
+
+    private List<ArtikelModel>? verfuegbar;
+    private HashSet<int> gewaehlt = new();
+    private string begruendung = string.Empty;
+    private DateTime von = DateTime.Today;
+    private DateTime bis = DateTime.Today.AddDays(7);
+    private string? fehler;
+
+    protected override async Task OnInitializedAsync()
+    {
+        verfuegbar = await Db.Artikel
+            .Include(a => a.Kategorie)
+            .Where(a => a.Status == ArtikelStatus.Verfuegbar)
+            .OrderBy(a => a.Bezeichnung)
+            .ToListAsync();
+    }
+
+    private void Toggle(int id, bool aktiv)
+    {
+        if (aktiv) gewaehlt.Add(id);
+        else gewaehlt.Remove(id);
+    }
+
+    private async Task Absenden()
+    {
+        if (gewaehlt.Count == 0) { fehler = "Bitte mindestens einen Artikel auswählen."; return; }
+        if (string.IsNullOrWhiteSpace(begruendung)) { fehler = "Bitte eine Begründung angeben."; return; }
+        if (von.Date < DateTime.Today) { fehler = "Das Startdatum darf nicht in der Vergangenheit liegen."; return; }
+        if (bis.Date < von.Date) { fehler = "Das Enddatum muss nach dem Startdatum liegen."; return; }
+        if (bis.Date > von.Date.AddMonths(1)) { fehler = "Die maximale Ausleihdauer beträgt 1 Monat."; return; }
+
+        // Nochmals aus der DB laden: Ein anderer Antrag könnte die Artikel inzwischen reserviert haben
+        var artikel = await Db.Artikel
+            .Where(a => gewaehlt.Contains(a.ART_ID) && a.Status == ArtikelStatus.Verfuegbar)
+            .ToListAsync();
+
+        if (artikel.Count != gewaehlt.Count)
+        {
+            fehler = "Mindestens ein Artikel ist nicht mehr verfügbar. Bitte Seite neu laden.";
+            return;
+        }
+
+        var state = await AuthState!;
+        var userId = int.Parse(state.User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)!.Value);
+
+        var antrag = new AusleihAntragModel
+        {
+            UserId = userId,
+            Begruendung = begruendung,
+            Status = AntragStatus.Ausstehend,
+            Erstellungsdatum = DateTime.Now,
+            Artikel = artikel.Select(a => new AusleihArtikelModel
+            {
+                ART_ID = a.ART_ID,
+                Anzahl = 1,
+                Von = von.Date,
+                Bis = bis.Date
+            }).ToList()
+        };
+
+        foreach (var a in artikel)
+            a.Status = ArtikelStatus.Reserviert;
+
+        Db.AusleihAntraege.Add(antrag);
+        await Db.SaveChangesAsync();
+        await Log.LogAsync("AusleihAntraege", antrag.REQ_ID, "Erstellt", begruendung);
+        Nav.NavigateTo("Ausleihen");
+    }
+}

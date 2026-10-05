@@ -1,11 +1,16 @@
 ﻿@page "/Ausleihen"
 @rendermode InteractiveServer
 @using Microsoft.EntityFrameworkCore
+@using Microsoft.AspNetCore.Components.Authorization
 @using LagerverwaltungTool.Data
 @using LagerverwaltungTool.Model
 @inject AppDbContext Db
+@inject ChangeLogService Log
+@attribute [Authorize(Roles = "Admin,Lernende")]
 
 <PageTitle>Meine Ausleihen</PageTitle>
+
+<a href="Ausleihen/neu" class="btn btn-primary mb-3">Neuen Ausleihantrag erstellen</a>
 
 <h3>MeineAusleihen</h3>
 
@@ -42,13 +47,13 @@ else
                 <td>@a.Begruendung</td>
                 <td>@a.Artikel.Sum(x => x.Anzahl)</td>
                 <td>@Zeitraum(a)</td>
-                <td>@a.Status</td>
+                <td>@a.Status@(a.RueckgabeDatum != null ? " (zurückgegeben)" : "")</td>
                 <td>@a.Notizen</td>
                 <td>@a.Erstellungsdatum.ToString("dd.MM.yyyy")</td>
                 <td>
                     @if (a.Status == AntragStatus.Ausstehend)
                     {
-                            <button class="btn btn-outline-danger btn-sm" onclick="() => Stornieren(a)">Stornieren</button>
+                            <button class="btn btn-outline-danger btn-sm" @onclick="() => Stornieren(a)">Stornieren</button>
                     }
                 </td>
              </tr>
@@ -60,13 +65,15 @@ else
 @code {
     private List<AusleihAntragModel>? antreage;
 
+    [CascadingParameter] private Task<AuthenticationState>? AuthState { get; set; }
+
     protected override async Task OnInitializedAsync()
     {
-        // TOD: Benutzer aus der Datenbank abrufen und die Ausleihanträge für den aktuellen Benutzer laden
-        var user = await Db.Users.FirstAsync(u => u.Rolle == UserRolle.Lernende);
+        var state = await AuthState!;
+        var userId = int.Parse(state.User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)!.Value);
 
         antreage = await Db.AusleihAntraege
-                    .Where(a => a.UserId == user.Id)
+                    .Where(a => a.UserId == userId)
                     .Include(a => a.Artikel).ThenInclude(aa => aa.Artikel)
                     .OrderByDescending(a => a.Erstellungsdatum)
                     .ToListAsync();
@@ -85,5 +92,6 @@ else
         foreach (var aa in a.Artikel)
             aa.Artikel.Status = ArtikelStatus.Verfuegbar;
         await Db.SaveChangesAsync();
+        await Log.LogAsync("AusleihAntraege", a.REQ_ID, "Storniert");
     }
 }

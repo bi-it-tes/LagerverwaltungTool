@@ -7,7 +7,10 @@
 <PageTitle>Inventar</PageTitle>
 
 <h3>Inventar Übersicht:</h3>
-<a href="inventar/neu" class="btn btn-primary mb-3">+ Artikel hinzufügen</a>
+
+<AuthorizeView Roles="Admin">
+    <a href="inventar/neu" class="btn btn-primary mb-3">+ Artikel hinzufügen</a>
+</AuthorizeView>
 
 @if (artikel == null)
 {
@@ -35,6 +38,9 @@ else
                 <th>Status</th>
                 <th>Notizen</th>
                 <th>Erfassungsdatum</th>
+                <AuthorizeView Roles="Admin">
+                    <th>Aktion</th>
+                </AuthorizeView>
             </tr>
         </thead>
         <tbody>
@@ -54,10 +60,13 @@ else
                     <td>@a.Status</td>
                     <td>@a.Notizen</td>
                     <td>@a.Erfassungsdatum.ToString("dd.MM.yyyy")</td>
-                </tr>
-            }
-        </tbody>
-    </table>
+                    <AuthorizeView Roles="Admin">
+                        <td><a href="inventar/@a.ART_ID/bearbeiten" class="btn btn-outline-primary btn-sm">Bearbeiten</a></td>
+                    </AuthorizeView>
+                    </tr>
+                }
+            </tbody>
+        </table>
 }
 
 @code {

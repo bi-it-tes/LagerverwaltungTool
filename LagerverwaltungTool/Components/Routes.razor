@@ -1,9 +1,16 @@
 ﻿<Router AppAssembly="typeof(Program).Assembly" NotFoundPage="typeof(Pages.NotFound)">
     <Found Context="routeData">
         <AuthorizeRouteView RouteData="routeData" DefaultLayout="typeof(Layout.MainLayout)">
-            <NotAuthorized>
-                <RedirectToLogin />
-            </NotAuthorized>    
+           <NotAuthorized>
+    @if (context.User.Identity?.IsAuthenticated != true)
+    {
+        <RedirectToLogin />
+    }
+    else
+    {
+        <div class="alert alert-danger mt-3">Kein Zugriff: Dafür fehlt dir die Berechtigung.</div>
+    }
+</NotAuthorized>
         </AuthorizeRouteView>
        <FocusOnNavigate RouteData="routeData" Selector="h1" />
     </Found>

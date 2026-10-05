@@ -1,0 +1,227 @@
+﻿@page "/inventar/{Id:int}/bearbeiten"
+@rendermode InteractiveServer
+@attribute [Authorize(Roles = "Admin")]
+@using Microsoft.EntityFrameworkCore
+@using LagerverwaltungTool.Data
+@using LagerverwaltungTool.Model
+@inject AppDbContext Db
+@inject NavigationManager Nav
+@inject ChangeLogService Log
+
+<PageTitle>Inventar bearbeiten</PageTitle>
+
+<a href="inventar">← Zurück zum Inventar</a>
+
+@if (loading)
+{
+    <p>Lade...</p>    
+}
+else if (artikel == null)
+{
+    <p>Artikel nicht gefunden.</p>    
+}
+else
+{
+    <h3 class="mt-3">ART-@artikel.ART_ID.ToString("D4") bearbeiten</h3>  
+    <EditForm Model="artikel" OnSubmit="Speichern">
+
+    @if (fehler != null)
+    {
+        <div class="alert alert-danger">@fehler</div>
+    }
+
+    <div class="row">
+        <div class="col-md-6 mb-3">
+            <div class="card h-100">
+                <div class="card-header">Verwaltung</div>
+                <div class="card-body">
+                    <div class="mb-2">
+                        <label class="form-label">Kategorie</label>
+                        <select class="form-select" @bind="artikel.KategorieId">
+                            @foreach (var k in kategorien)
+                            {
+                                <option value="@k.Id">@k.Name</option>
+                            }   
+                        </select>
+                    </div>
+                   <div class="mb-2">
+                        <label class="form-label">Bezeichnung</label>
+                        <input type="text" class="form-control" @bind="artikel.Bezeichnung" />
+                    </div>
+                    <div class="mb-2">
+                        <label class="form-label">Ort</label>
+                        <select class="form-select" @bind="artikel.Ort">
+                            <option value="">-- bitte wählen --</option>
+                            <option value="OBBA">OBBA</option>
+                            <option value="WBBA">WBBA</option>
+                        </select>
+                    </div>
+                    <div class="mb-2">
+                        <label class="form-label">Besitzer</label>
+                        <select class="form-select" @bind="artikel.BesitzerId">
+                                <option value="">-- niemand --</option>
+                                @foreach (var u in users)
+                                {
+                                    <option value="@u.Id">@u.Benutzername</option>
+                                }
+                            </select>
+                        </div><div class="mb-2">
+                            <label class="form-label">Status</label>
+                            @if (StatusGesperrt)
+                            {
+                                <input class="form-control" value="@artikel.Status" disabled />
+                                <div class="form-text">Der Status wird über die Ausleihanträge gesteuert.</div>
+                            }
+                            else
+                            {
+                                <select class="form-select" @bind="artikel.Status">
+                                    <option value="@ArtikelStatus.Verfuegbar">Verfuegbar</option>
+                                    <option value="@ArtikelStatus.Beschaedigt">Beschaedigt</option>
+                                    <option value="@ArtikelStatus.Archiviert">Archiviert</option>
+                                </select>
+                            }
+                        </div>
+                        <div class="mb-2">
+                            <label class="form-label">Notizen</label>
+                            <textarea class="form-control" rows="3" @bind="artikel.Notizen"></textarea>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            @if (ZeigeNetzwerk)
+            {
+                <div class="col-md-6 mb-3">
+                    <div class="card h-100">
+                        <div class="card-header">Netzwerk</div>
+                        <div class="card-body">
+                            <div class="mb-2">
+                                <label class="form-label">Hostname</label>
+                                <input class="form-control" @bind="artikel.Hostname" />
+                            </div>
+                            <div class="mb-2">
+                                <label class="form-label">IP-Adresse</label>
+                                <input class="form-control" @bind="artikel.IPAdresse" />
+                            </div>
+                            <div class="form-check mb-2">
+                                <input class="form-check-input" type="checkbox" id="statisch" @bind="artikel.IstStatisch" />
+                                <label class="form-check-label" for="statisch">Statisch</label>
+                            </div>
+                            <div class="mb-2">
+                                <label class="form-label">MAC-Adresse</label>
+                                <input class="form-control" @bind="artikel.MACAdresse" />
+                            </div>
+                            <div class="mb-2">
+                                <label class="form-label">Netz</label>
+                                <select class="form-select" @bind="artikel.Netz">
+                                    <option value="">-- bitte wählen --</option>
+                                    <option value="@NetzwerkTyp.LAN">LAN</option>
+                                    <option value="@NetzwerkTyp.WLAN">WLAN</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            }
+        </div>
+
+        <button type="submit" class="btn btn-primary">Speichern</button>
+        <a href="inventar" class="btn btn-secondary ms-2">Abbrechen</a>
+
+        @if (!loeschenBestaetigen)
+        {
+            <button type="button" class="btn btn-outline-danger ms-4" @onclick="() => loeschenBestaetigen = true">Löschen</button>
+        }
+        else
+        {
+            <span class="ms-4">Wirklich löschen?</span>
+            <button type="button" class="btn btn-danger ms-2" @onclick="Loeschen">Ja, löschen</button>
+            <button type="button" class="btn btn-outline-secondary ms-1" @onclick="() => loeschenBestaetigen = false">Nein</button>
+        }
+    </EditForm>
+}
+
+@code {
+    [Parameter] public int Id { get; set; }
+
+    private ArtikelModel? artikel;
+    private List<KategorieModel> kategorien = new();
+    private List<UserModel> users = new();
+    private bool loading = true;
+    private bool loeschenBestaetigen;
+    private string? fehler;
+
+    private static readonly string[] OhneNetzwerk =
+        { "Bildschirme & Peripherie", "Zubehör", "Verbrauchsmaterial" };
+
+    private bool StatusGesperrt =>
+        artikel != null && (artikel.Status == ArtikelStatus.Ausgeliehen || artikel.Status == ArtikelStatus.Reserviert);
+
+    private bool ZeigeNetzwerk
+    {
+        get
+        {
+            var k = kategorien.FirstOrDefault(x => x.Id == artikel?.KategorieId);
+            return k != null && !OhneNetzwerk.Contains(k.Name);
+        }
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        artikel = await Db.Artikel.FirstOrDefaultAsync(a => a.ART_ID == Id);
+        kategorien = await Db.Kategorien.OrderBy(k => k.Name).ToListAsync();
+        users = await Db.Users.OrderBy(u => u.Benutzername).ToListAsync();
+        loading = false;
+    }
+
+    private async Task Speichern()
+    {
+        if (artikel == null) return;
+
+        if (string.IsNullOrWhiteSpace(artikel.Bezeichnung))
+        {
+            fehler = "Bitte eine Bezeichnung angeben.";
+            return;
+        }
+
+        if (!ZeigeNetzwerk)
+        {
+            artikel.Hostname = null;
+            artikel.IPAdresse = null;
+            artikel.MACAdresse = null;
+            artikel.Netz = null;
+            artikel.IstStatisch = false;
+        }
+
+        await Db.SaveChangesAsync();
+        await Log.LogAsync("Artikel", artikel.ART_ID, "Geändert", artikel.Bezeichnung);
+        Nav.NavigateTo("inventar");
+    }
+
+    private async Task Loeschen()
+    {
+        if (artikel == null) return;
+        loeschenBestaetigen = false;
+
+        if (StatusGesperrt)
+        {
+            fehler = "Der Artikel ist reserviert oder ausgeliehen. Lehne den Antrag zuerst ab bzw. erfasse die Rückgabe, dann kann der Artikel archiviert werden.";
+            return;
+        }
+
+        var inAntrag = await Db.AusleihArtikel.AnyAsync(x => x.ART_ID == artikel.ART_ID);
+        if (inAntrag)
+        {
+            fehler = "Der Artikel kommt in Ausleihanträgen vor und kann nicht gelöscht werden. Setze den Status stattdessen auf «Archiviert».";
+            return;
+        }
+
+        var id = artikel.ART_ID;
+        var name = artikel.Bezeichnung;
+
+        Db.Artikel.Remove(artikel);
+        await Db.SaveChangesAsync();
+        await Log.LogAsync("Artikel", id, "Gelöscht", name);
+        Nav.NavigateTo("inventar");
+    }
+}
