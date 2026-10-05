@@ -1,0 +1,89 @@
+﻿@page "/Ausleihen"
+@rendermode InteractiveServer
+@using Microsoft.EntityFrameworkCore
+@using LagerverwaltungTool.Data
+@using LagerverwaltungTool.Model
+@inject AppDbContext Db
+
+<PageTitle>Meine Ausleihen</PageTitle>
+
+<h3>MeineAusleihen</h3>
+
+@if (antreage == null) 
+{
+    <p>Lade ...</p>
+}
+else if (antreage.Count == 0) 
+{
+    <p>Du hast noch keine Ausleihanträge erstellt.</p>
+}
+else 
+{
+<table class="table table-striped">
+    <thead>
+        <tr>
+            <th>ID</th>
+            <th>Artikel</th>
+            <th>Begründung</th>
+            <th>Anzahl</th>
+            <th>Zeitraum</th>
+            <th>Status</th>
+            <th>Notizen</th>
+            <th>Erstellt</th>
+            <th>Aktion</th>
+        </tr>
+    </thead>
+    <tbody>
+        @foreach (var a in antreage)
+        {
+            <tr>
+                <td>REQ-@a.REQ_ID.ToString("D4")</td>
+                <td>@string.Join(", ", a.Artikel.Select(x => x.Artikel.Bezeichnung))</td>
+                <td>@a.Begruendung</td>
+                <td>@a.Artikel.Sum(x => x.Anzahl)</td>
+                <td>@Zeitraum(a)</td>
+                <td>@a.Status</td>
+                <td>@a.Notizen</td>
+                <td>@a.Erstellungsdatum.ToString("dd.MM.yyyy")</td>
+                <td>
+                    @if (a.Status == AntragStatus.Ausstehend)
+                    {
+                            <button class="btn btn-outline-danger btn-sm" onclick="() => Stornieren(a)">Stornieren</button>
+                    }
+                </td>
+             </tr>
+            }
+    </tbody>
+   </table>
+}
+
+@code {
+    private List<AusleihAntragModel>? antreage;
+
+    protected override async Task OnInitializedAsync()
+    {
+        // TOD: Benutzer aus der Datenbank abrufen und die Ausleihanträge für den aktuellen Benutzer laden
+        var user = await Db.Users.FirstAsync(u => u.Rolle == UserRolle.Lernende);
+
+        antreage = await Db.AusleihAntraege
+                    .Where(a => a.UserId == user.Id)
+                    .Include(a => a.Artikel).ThenInclude(aa => aa.Artikel)
+                    .OrderByDescending(a => a.Erstellungsdatum)
+                    .ToListAsync();
+    }
+    
+    private static string Zeitraum(AusleihAntragModel a) => 
+        a.Artikel.Any()
+                ? $"{a.Artikel.Min(x => x.Von):dd.MM.yyyy} - {a.Artikel.Max(x => x.Bis):dd.MM.yyyy}"
+                : "-";
+
+    private async Task Stornieren(AusleihAntragModel a)
+    {
+        if (a.Status != AntragStatus.Ausstehend) return;
+      
+        a.Status = AntragStatus.Storniert;
+        foreach (var aa in a.Artikel)
+            aa.Artikel.Status = ArtikelStatus.Verfuegbar;
+        await Db.SaveChangesAsync();
+    }
+}
