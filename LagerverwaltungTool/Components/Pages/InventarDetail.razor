@@ -62,6 +62,9 @@ else
                         <dt class="col-sm-4">Besitzer/in</dt>
                         <dd class="col-sm-8">@artikel.Besitzer?.Benutzername</dd>
 
+                        <dt class="col-sm-4">Letzter Nutzer</dt>
+                        <dd class="col-sm-8">@(letzterNutzer ?? "-")</dd>
+
                         <dt class="col-sm-4">Notizen</dt>
                         <dd class="col-sm-8">@artikel.Notizen</dd>
 
@@ -79,6 +82,7 @@ else
 
     private ArtikelModel? artikel;
     private bool loading = true;
+    private string? letzterNutzer;
 
     protected override async Task OnInitializedAsync()
     {
@@ -86,6 +90,13 @@ else
             .Include(a => a.Kategorie)
             .Include(a => a.Besitzer)
             .FirstOrDefaultAsync(a => a.ART_ID == Id);
+
+        letzterNutzer = await Db.AusleihArtikel
+            .Where(x => x.ART_ID == Id && x.Antrag.Status == AntragStatus.Genehmigt)
+            .OrderByDescending(x => x.Antrag.Erstellungsdatum)
+            .Select(x => x.Antrag.User.Benutzername)
+            .FirstOrDefaultAsync();
+
         loading = false;
     }
 }

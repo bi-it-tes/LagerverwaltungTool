@@ -42,7 +42,8 @@
 
     private async Task Anmelden()
     {
-        var user = await Db.Users.FirstOrDefaultAsync(u => u.Email == input.Email);
+        var mail = input!.Email.Trim().ToLowerInvariant();
+        var user = await Db.Users.FirstOrDefaultAsync(u => u.Email == mail);
         
         if (user != null)
         {

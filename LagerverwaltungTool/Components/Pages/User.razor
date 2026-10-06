@@ -1,0 +1,144 @@
+﻿@page "/user"
+@rendermode InteractiveServer
+@attribute [Authorize(Roles = "Admin")]
+@using Microsoft.AspNetCore.Identity
+@using Microsoft.EntityFrameworkCore
+@using LagerverwaltungTool.Data
+@using LagerverwaltungTool.Model
+@inject AppDbContext Db
+@inject ChangeLogService Log
+
+<PageTitle>User-Verwaltung</PageTitle>
+
+<h3>Users:</h3>
+
+@if (users == null)
+{
+    <p>Lade...</p>    
+}
+else
+{
+<table class="table table-striped">
+    <thead>
+        <tr>
+            <th>Vor- und Nachnamen</th>
+            <th>E-Mail</th>
+            <th>Rolle</th>
+        </tr>
+    </thead>   
+    <tbody>
+        @foreach (var u in users)
+            {
+                <tr>
+                    <td>@u.Benutzername</td>
+                    <td>@u.Email</td>
+                    <td>@u.Rolle</td>
+                </tr>
+            }
+        </tbody> 
+</table>    
+}
+
+<div class="card mt-4" style="max-width: 500px;">
+    <div class="card-header">Neuer Benutzer anlegen</div>
+    <div class="card-body">
+        <EditForm Model="this" OnSubmit="Anlegen">
+            @if (fehler != null)
+            {
+                <div class="alert alert-danger">@fehler</div>    
+            }
+            @if (erfolg != null)
+            {
+                <div class="alert alert-success">@erfolg</div>
+            }
+
+            <div class="mb-2">
+                <label class="form-label">Name</label>
+                <input class="form-control" @bind="name" />
+            </div>
+            <div class="mb-2">
+                <label class="form-label">Email</label>
+                <input class="form-control" @bind="email" />
+            </div>
+            <div class="mb-2">
+                <label class="form-label">Password</label>
+                <input type="password" class="form-control" @bind="password" />
+                <div class="form-text">Mindestens 8 zeichen</div>
+            </div>
+            <div class="mb-3">
+                <label class="form-label">Rolle</label>
+                <select class="form-select" @bind="rolle">
+                    <option value="@UserRolle.Lernende">Lernende</option>
+                    <option value="@UserRolle.Admin">Admin</option>
+                    <option value="@UserRolle.Gast">Gast</option>
+                </select>
+            </div>
+            <button type="submit" class="btn btn-primary">Benutzer anlegen</button>
+        </EditForm>
+    </div>
+</div>
+
+@code {
+    private List<UserModel>? users;
+    private string name = string.Empty;
+    private string email = string.Empty;
+    private string password = string.Empty;
+    private UserRolle rolle = UserRolle.Lernende;
+    private string? fehler;
+    private string? erfolg;
+
+    protected override async Task OnInitializedAsync() => await Laden();
+
+    private async Task Laden()
+    {
+        users = await Db.Users.OrderBy(u => u.Benutzername).ToListAsync();
+    }
+
+    private async Task Anlegen()
+    {
+        fehler = null;
+        erfolg = null;
+
+        var mail = email.Trim().ToLowerInvariant();
+
+        if (string.IsNullOrWhiteSpace(name) || string.IsNullOrWhiteSpace(mail) || string.IsNullOrWhiteSpace(password))
+        {
+            fehler = "Bitte Name, Email und Password ausfüllen.";
+            return;
+        }
+        if (!mail.Contains('@'))
+        {
+            fehler = "Bitte eine gültige Email-Adresse eingeben.";
+            return;
+        }
+        if (password.Length < 8)
+        {
+            fehler = "Das Password muss mindestens 8 Zeichen lang sein.";
+            return;
+        }
+        if (await Db.Users.AnyAsync(u => u.Email.ToLower() == mail))
+        {
+            fehler = "Diese E-Mail-Adresse ist bereits vergeben.";
+            return;
+        }
+
+        var user = new UserModel
+        {
+            Benutzername = name.Trim(),
+            Email = mail,
+            Rolle = rolle
+        };
+        user.PasswortHash = new PasswordHasher<UserModel>().HashPassword(user, password);
+
+        Db.Users.Add(user);
+        await Db.SaveChangesAsync();
+        await Log.LogAsync("Users", user.Id, "Erstellt", $"{user.Benutzername} ({user.Rolle})");
+
+        erfolg = $"Benutzer «{user.Benutzername}» wurde angelegt.";
+        name = string.Empty;
+        email = string.Empty;
+        password = string.Empty;
+        rolle = UserRolle.Lernende;
+        await Laden();
+    }
+}
