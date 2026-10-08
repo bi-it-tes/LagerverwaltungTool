@@ -19,7 +19,18 @@ docker compose up -d
 
 Dadurch werden die Docker-Container für die Datenbank (MariaDB) und phpMyAdmin gestartet. Beim ersten Start dauert es einen Moment, bis die Datenbank bereit ist.
 
-### 2. Anwendung starten
+### 2. Datenbank-Tabellen erstellen
+
+Beim ersten Start einmalig ausführen (im Ordner mit der Datei `LagerverwaltungTool.csproj`):
+
+```bash
+dotnet tool install --global dotnet-ef
+dotnet ef database update
+```
+
+Dadurch werden die Tabellen erstellt. Die Testdaten werden beim Start der Anwendung automatisch eingefügt.
+
+### 3. Anwendung starten
 
 In einem zweiten Terminal in den Ordner mit der Datei `LagerverwaltungTool.csproj` wechseln und ausführen:
 
@@ -27,7 +38,7 @@ In einem zweiten Terminal in den Ordner mit der Datei `LagerverwaltungTool.cspro
 dotnet run
 ```
 
-### 3. Anwendung öffnen
+### 4. Anwendung öffnen
 
 Im Browser öffnen: http://localhost:5236
 
